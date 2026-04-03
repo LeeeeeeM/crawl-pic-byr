@@ -1,0 +1,10 @@
+.DS_Store
+
+backend/.env
+backend/tmp
+frontend/.env
+
+frontend/node_modules
+frontend/dist
+
+backend/bin
