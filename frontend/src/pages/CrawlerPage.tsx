@@ -1,6 +1,10 @@
 import { FormEvent, useMemo, useState } from 'react';
+import { Alert, Button, Card, Input, InputNumber, Tabs, Typography } from 'antd';
 import { createBYRJob, createJob, getJob, getPhotos, getPosts } from '../api';
 import type { BYRCrawlConfig, CrawlConfig, CrawlJob, Photo, Post } from '../types';
+
+const { TextArea } = Input;
+const { Text, Link } = Typography;
 
 const defaultGenericForm = {
   siteName: '',
@@ -32,7 +36,7 @@ function splitLines(raw: string): string[] {
     .filter(Boolean);
 }
 
-export default function App() {
+export default function CrawlerPage() {
   const [tab, setTab] = useState<'byr' | 'generic'>('byr');
   const [genericForm, setGenericForm] = useState(defaultGenericForm);
   const [byrForm, setByrForm] = useState(defaultBYRForm);
@@ -147,231 +151,162 @@ export default function App() {
       <h1>帖子爬虫</h1>
       <p className="subtitle">抓取帖子内容和图片 URL（无图片帖子不入库）</p>
 
-      <section className="card tabs">
-        <button type="button" className={tab === 'byr' ? 'active' : ''} onClick={() => setTab('byr')}>
-          BYR 登录态爬取
-        </button>
-        <button type="button" className={tab === 'generic' ? 'active' : ''} onClick={() => setTab('generic')}>
-          通用选择器爬取
-        </button>
-      </section>
+      <Tabs
+        activeKey={tab}
+        onChange={(key) => setTab(key as 'byr' | 'generic')}
+        items={[
+          {
+            key: 'byr',
+            label: 'BYR 登录态爬取',
+            children: (
+              <Card className="card">
+                <form className="form-grid" onSubmit={onBYRSubmit}>
+                  <Text type="secondary">
+                    先启动 Chrome 调试端口并手动登录 BYR，再提交任务。默认命令：
+                    <code> /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222</code>
+                  </Text>
+                  <Text type="secondary">图片过滤默认阈值为 50KB（51200 字节）。</Text>
 
-      {tab === 'byr' && (
-        <form className="card form-grid" onSubmit={onBYRSubmit}>
-          <p className="muted">
-            先启动 Chrome 调试端口并手动登录 BYR，再提交任务。默认命令：
-            <code> /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222</code>
-          </p>
-          <p className="muted">图片过滤默认阈值为 50KB（51200 字节）。</p>
-          <label>
-            任务名
-            <input
-              required
-              value={byrForm.siteName}
-              onChange={(e) => setByrForm((prev) => ({ ...prev, siteName: e.target.value }))}
-            />
-          </label>
-          <label>
-            板块名
-            <input
-              required
-              value={byrForm.boardName}
-              onChange={(e) => setByrForm((prev) => ({ ...prev, boardName: e.target.value }))}
-            />
-          </label>
-          <div className="inline-inputs">
-            <label>
-              起始页
-              <input
-                type="number"
-                min={1}
-                value={byrForm.startPage}
-                onChange={(e) => setByrForm((prev) => ({ ...prev, startPage: Number(e.target.value) }))}
-              />
-            </label>
-            <label>
-              最大页数
-              <input
-                type="number"
-                min={1}
-                value={byrForm.maxPages}
-                onChange={(e) => setByrForm((prev) => ({ ...prev, maxPages: Number(e.target.value) }))}
-              />
-            </label>
-            <label>
-              最小图片大小(字节)
-              <input
-                type="number"
-                min={0}
-                value={byrForm.minImageBytes}
-                onChange={(e) => setByrForm((prev) => ({ ...prev, minImageBytes: Number(e.target.value) }))}
-              />
-            </label>
-          </div>
-          <label>
-            Chrome DevTools 地址
-            <input
-              required
-              value={byrForm.remoteDebugUrl}
-              onChange={(e) => setByrForm((prev) => ({ ...prev, remoteDebugUrl: e.target.value }))}
-            />
-          </label>
-          <button type="submit" disabled={submitting}>
-            {submitting ? '采集中...' : '开始 BYR 爬取'}
-          </button>
-        </form>
-      )}
+                  <label>
+                    任务名
+                    <Input required value={byrForm.siteName} onChange={(e) => setByrForm((prev) => ({ ...prev, siteName: e.target.value }))} />
+                  </label>
 
-      {tab === 'generic' && (
-        <form className="card form-grid" onSubmit={onGenericSubmit}>
-          <p className="muted">图片过滤默认阈值为 50KB（51200 字节）。</p>
-          <label>
-            站点名称
-            <input
-              required
-              value={genericForm.siteName}
-              onChange={(e) => setGenericForm((prev) => ({ ...prev, siteName: e.target.value }))}
-            />
-          </label>
+                  <label>
+                    板块名
+                    <Input required value={byrForm.boardName} onChange={(e) => setByrForm((prev) => ({ ...prev, boardName: e.target.value }))} />
+                  </label>
 
-          <label>
-            起始列表页（每行一个 URL）
-            <textarea
-              required
-              rows={3}
-              value={genericForm.startUrls}
-              onChange={(e) => setGenericForm((prev) => ({ ...prev, startUrls: e.target.value }))}
-            />
-          </label>
+                  <div className="inline-inputs">
+                    <label>
+                      起始页
+                      <InputNumber min={1} value={byrForm.startPage} onChange={(v) => setByrForm((prev) => ({ ...prev, startPage: Number(v ?? 1) }))} />
+                    </label>
+                    <label>
+                      最大页数
+                      <InputNumber min={1} value={byrForm.maxPages} onChange={(v) => setByrForm((prev) => ({ ...prev, maxPages: Number(v ?? 1) }))} />
+                    </label>
+                    <label>
+                      最小图片大小(字节)
+                      <InputNumber min={0} value={byrForm.minImageBytes} onChange={(v) => setByrForm((prev) => ({ ...prev, minImageBytes: Number(v ?? 0) }))} />
+                    </label>
+                  </div>
 
-          <label>
-            允许域名（每行一个，如 example.com）
-            <textarea
-              rows={2}
-              value={genericForm.allowedDomains}
-              onChange={(e) => setGenericForm((prev) => ({ ...prev, allowedDomains: e.target.value }))}
-            />
-          </label>
+                  <label>
+                    Chrome DevTools 地址
+                    <Input required value={byrForm.remoteDebugUrl} onChange={(e) => setByrForm((prev) => ({ ...prev, remoteDebugUrl: e.target.value }))} />
+                  </label>
 
-          <label>
-            帖子链接选择器
-            <input
-              required
-              value={genericForm.postLinkSelector}
-              onChange={(e) => setGenericForm((prev) => ({ ...prev, postLinkSelector: e.target.value }))}
-            />
-          </label>
+                  <Button type="primary" htmlType="submit" loading={submitting}>
+                    开始 BYR 爬取
+                  </Button>
+                </form>
+              </Card>
+            ),
+          },
+          {
+            key: 'generic',
+            label: '通用选择器爬取',
+            children: (
+              <Card className="card">
+                <form className="form-grid" onSubmit={onGenericSubmit}>
+                  <Text type="secondary">图片过滤默认阈值为 50KB（51200 字节）。</Text>
 
-          <label>
-            下一页选择器（可空）
-            <input
-              value={genericForm.nextPageSelector}
-              onChange={(e) => setGenericForm((prev) => ({ ...prev, nextPageSelector: e.target.value }))}
-            />
-          </label>
+                  <label>
+                    站点名称
+                    <Input required value={genericForm.siteName} onChange={(e) => setGenericForm((prev) => ({ ...prev, siteName: e.target.value }))} />
+                  </label>
 
-          <label>
-            图片选择器
-            <input
-              value={genericForm.imageSelector}
-              onChange={(e) => setGenericForm((prev) => ({ ...prev, imageSelector: e.target.value }))}
-            />
-          </label>
+                  <label>
+                    起始列表页（每行一个 URL）
+                    <TextArea required rows={3} value={genericForm.startUrls} onChange={(e) => setGenericForm((prev) => ({ ...prev, startUrls: e.target.value }))} />
+                  </label>
 
-          <label>
-            标题选择器
-            <input
-              value={genericForm.postTitleSelector}
-              onChange={(e) => setGenericForm((prev) => ({ ...prev, postTitleSelector: e.target.value }))}
-            />
-          </label>
+                  <label>
+                    允许域名（每行一个，如 example.com）
+                    <TextArea rows={2} value={genericForm.allowedDomains} onChange={(e) => setGenericForm((prev) => ({ ...prev, allowedDomains: e.target.value }))} />
+                  </label>
 
-          <div className="inline-inputs">
-            <label>
-              最大列表页
-              <input
-                type="number"
-                min={1}
-                value={genericForm.maxListPages}
-                onChange={(e) =>
-                  setGenericForm((prev) => ({ ...prev, maxListPages: Number(e.target.value) }))
-                }
-              />
-            </label>
-            <label>
-              最大帖子数
-              <input
-                type="number"
-                min={1}
-                value={genericForm.maxPosts}
-                onChange={(e) => setGenericForm((prev) => ({ ...prev, maxPosts: Number(e.target.value) }))}
-              />
-            </label>
-            <label>
-              请求超时(秒)
-              <input
-                type="number"
-                min={1}
-                value={genericForm.requestTimeoutSecs}
-                onChange={(e) =>
-                  setGenericForm((prev) => ({ ...prev, requestTimeoutSecs: Number(e.target.value) }))
-                }
-              />
-            </label>
-            <label>
-              最小图片大小(字节)
-              <input
-                type="number"
-                min={0}
-                value={genericForm.minImageBytes}
-                onChange={(e) =>
-                  setGenericForm((prev) => ({ ...prev, minImageBytes: Number(e.target.value) }))
-                }
-              />
-            </label>
-          </div>
+                  <label>
+                    帖子链接选择器
+                    <Input required value={genericForm.postLinkSelector} onChange={(e) => setGenericForm((prev) => ({ ...prev, postLinkSelector: e.target.value }))} />
+                  </label>
 
-          <button type="submit" disabled={submitting}>
-            {submitting ? '采集中...' : '开始采集'}
-          </button>
-        </form>
-      )}
+                  <label>
+                    下一页选择器（可空）
+                    <Input value={genericForm.nextPageSelector} onChange={(e) => setGenericForm((prev) => ({ ...prev, nextPageSelector: e.target.value }))} />
+                  </label>
+
+                  <label>
+                    图片选择器
+                    <Input value={genericForm.imageSelector} onChange={(e) => setGenericForm((prev) => ({ ...prev, imageSelector: e.target.value }))} />
+                  </label>
+
+                  <label>
+                    标题选择器
+                    <Input value={genericForm.postTitleSelector} onChange={(e) => setGenericForm((prev) => ({ ...prev, postTitleSelector: e.target.value }))} />
+                  </label>
+
+                  <div className="inline-inputs">
+                    <label>
+                      最大列表页
+                      <InputNumber min={1} value={genericForm.maxListPages} onChange={(v) => setGenericForm((prev) => ({ ...prev, maxListPages: Number(v ?? 1) }))} />
+                    </label>
+                    <label>
+                      最大帖子数
+                      <InputNumber min={1} value={genericForm.maxPosts} onChange={(v) => setGenericForm((prev) => ({ ...prev, maxPosts: Number(v ?? 1) }))} />
+                    </label>
+                    <label>
+                      请求超时(秒)
+                      <InputNumber min={1} value={genericForm.requestTimeoutSecs} onChange={(v) => setGenericForm((prev) => ({ ...prev, requestTimeoutSecs: Number(v ?? 1) }))} />
+                    </label>
+                    <label>
+                      最小图片大小(字节)
+                      <InputNumber min={0} value={genericForm.minImageBytes} onChange={(v) => setGenericForm((prev) => ({ ...prev, minImageBytes: Number(v ?? 0) }))} />
+                    </label>
+                  </div>
+
+                  <Button type="primary" htmlType="submit" loading={submitting}>
+                    开始采集
+                  </Button>
+                </form>
+              </Card>
+            ),
+          },
+        ]}
+      />
 
       {job && (
-        <section className="card">
-          <h2>任务状态</h2>
+        <Card className="card" title="任务状态">
           <p>ID: {job.id}</p>
           <p>站点: {job.siteName}</p>
           <p>状态: {job.status}</p>
-          <p>
-            统计: 帖子 {stats.postCount} / 图片 {stats.photoCount}
-          </p>
-        </section>
+          <p>统计: 帖子 {stats.postCount} / 图片 {stats.photoCount}</p>
+        </Card>
       )}
 
-      {error && <p className="error">{error}</p>}
+      {error && <Alert style={{ marginTop: 16 }} message={error} type="error" showIcon />}
 
       {posts.length > 0 && (
-        <section className="card">
-          <h2>帖子内容</h2>
+        <Card className="card" title="帖子内容">
           <div className="post-list">
             {posts.map((post) => {
               const related = photosByPost.get(post.id) ?? [];
               return (
                 <article key={post.id} className="post-item">
                   <h3>
-                    <a href={post.url} target="_blank" rel="noreferrer">
+                    <Link href={post.url} target="_blank" rel="noreferrer">
                       {post.title}
-                    </a>
+                    </Link>
                   </h3>
                   <p className="content">{post.content || '（无正文）'}</p>
                   {related.length > 0 && (
                     <div className="photo-list">
                       {related.map((photo) => (
                         <div key={photo.id} className="photo-item">
-                          <a href={photo.url} target="_blank" rel="noreferrer">
+                          <Link href={photo.url} target="_blank" rel="noreferrer">
                             {photo.fileName ?? photo.url}
-                          </a>
+                          </Link>
                         </div>
                       ))}
                     </div>
@@ -380,7 +315,7 @@ export default function App() {
               );
             })}
           </div>
-        </section>
+        </Card>
       )}
     </div>
   );

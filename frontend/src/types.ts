@@ -21,6 +21,28 @@ export type BYRCrawlConfig = {
   minImageBytes: number;
 };
 
+export type CDPCrawlConfig = {
+  siteName: string;
+  startUrl: string;
+  remoteDebugUrl: string;
+  pageReadySelector: string;
+  contentSelector: string;
+  imageSelector: string;
+  titleSelector: string;
+  waitAfterLoadMs: number;
+  minImageBytes: number;
+};
+
+export type BaiduIndexCrawlConfig = {
+  siteName: string;
+  keyword: string;
+  startUrl: string;
+  period: '7d' | '30d' | '90d' | '180d' | 'all';
+  remoteDebugUrl: string;
+  waitAfterLoadMs: number;
+  minImageBytes: number;
+};
+
 export type CrawlJob = {
   id: string;
   siteName: string;

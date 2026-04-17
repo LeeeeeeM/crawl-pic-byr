@@ -1,6 +1,7 @@
-import type { BYRCrawlConfig, CrawlConfig, CrawlJob, Photo, Post } from './types';
+import type { BYRCrawlConfig, BaiduIndexCrawlConfig, CDPCrawlConfig, CrawlConfig, CrawlJob, Photo, Post } from './types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+export const API_BASE_URL = BASE_URL;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
@@ -28,6 +29,20 @@ export function createJob(config: CrawlConfig): Promise<CrawlJob> {
 
 export function createBYRJob(config: BYRCrawlConfig): Promise<CrawlJob> {
   return request<CrawlJob>('/api/byr/jobs', {
+    method: 'POST',
+    body: JSON.stringify(config),
+  });
+}
+
+export function createCDPJob(config: CDPCrawlConfig): Promise<CrawlJob> {
+  return request<CrawlJob>('/api/cdp/jobs', {
+    method: 'POST',
+    body: JSON.stringify(config),
+  });
+}
+
+export function createBaiduIndexJob(config: BaiduIndexCrawlConfig): Promise<CrawlJob> {
+  return request<CrawlJob>('/api/baidu-index/jobs', {
     method: 'POST',
     body: JSON.stringify(config),
   });

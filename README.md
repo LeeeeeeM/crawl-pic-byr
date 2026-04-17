@@ -58,6 +58,9 @@ cd backend
 
 然后在这个 Chrome 窗口手动登录 `https://bbs.byr.cn/#!board/Friends`。
 
+说明：
+- `POST /api/cdp/jobs` 与 `POST /api/baidu-index/jobs` 也复用这个 Chrome 登录态。
+
 ### 3) 启动前端
 
 ```bash
@@ -118,6 +121,47 @@ docker compose down
   "remoteDebugUrl": "http://127.0.0.1:9222"
 }
 ```
+
+### `POST /api/cdp/jobs`
+基于已登录 Chrome（CDP）抓取单个网页正文与图片 URL。
+
+请求体示例：
+
+```json
+{
+  "siteName": "cdp-page",
+  "startUrl": "https://example.com/article",
+  "remoteDebugUrl": "http://127.0.0.1:9222",
+  "pageReadySelector": "main.article",
+  "contentSelector": "main.article",
+  "imageSelector": "img",
+  "titleSelector": "h1",
+  "waitAfterLoadMs": 1800,
+  "minImageBytes": 51200
+}
+```
+
+### `POST /api/baidu-index/jobs`
+基于已登录 Chrome（CDP）抓取百度指数趋势图（支持 `7d/30d/90d/180d/all`），将 canvas 转成 PNG 存到后端目录，并记录到任务图片结果中。
+
+请求体示例：
+
+```json
+{
+  "siteName": "baidu-index-openclaw",
+  "keyword": "openclaw",
+  "startUrl": "https://index.baidu.com/v2/main/index.html#/trend/openclaw?words=openclaw",
+  "period": "90d",
+  "remoteDebugUrl": "http://127.0.0.1:9222",
+  "waitAfterLoadMs": 1800,
+  "minImageBytes": 10240
+}
+```
+
+输出说明：
+- PNG 文件保存到 `ASSETS_DIR/baidu-index/`（默认 `backend/data/baidu-index/`）
+- 文件名格式：`时间戳_搜索词_时间段_后缀.png`，例如 `20260417_151530_openclaw_90d_搜索.png`
+- 可通过 `/assets/baidu-index/<filename>` 访问
 
 ## 注意
 

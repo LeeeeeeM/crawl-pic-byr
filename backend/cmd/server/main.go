@@ -39,7 +39,9 @@ func main() {
 	repo := repository.New(pool)
 	crawlerSvc := crawler.New(repo)
 	byrSvc := crawler.NewBYR(repo)
-	h := handlers.New(repo, crawlerSvc, byrSvc)
+	cdpSvc := crawler.NewCDP(repo)
+	baiduIndexSvc := crawler.NewBaiduIndex(repo, cfg.AssetsDir)
+	h := handlers.New(repo, crawlerSvc, byrSvc, cdpSvc, baiduIndexSvc)
 
 	r := chi.NewRouter()
 	r.Use(cors.Handler(cors.Options{
@@ -50,6 +52,10 @@ func main() {
 		MaxAge:           300,
 	}))
 	h.RegisterRoutes(r)
+	if err := os.MkdirAll(cfg.AssetsDir, 0o755); err != nil {
+		log.Fatal(err)
+	}
+	r.Handle("/assets/*", http.StripPrefix("/assets/", http.FileServer(http.Dir(cfg.AssetsDir))))
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

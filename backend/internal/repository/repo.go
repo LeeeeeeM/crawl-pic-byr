@@ -308,6 +308,61 @@ func (r *Repository) ValidateBYRConfig(cfg models.BYRCrawlConfig) error {
 	return nil
 }
 
+func (r *Repository) ValidateCDPConfig(cfg models.CDPCrawlConfig) error {
+	if strings.TrimSpace(cfg.StartURL) == "" {
+		return errors.New("startUrl is required")
+	}
+	parsed, err := url.Parse(cfg.StartURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("invalid startUrl: %s", cfg.StartURL)
+	}
+	if cfg.RemoteDebugURL == "" {
+		return errors.New("remoteDebugUrl is required, e.g. http://127.0.0.1:9222")
+	}
+	if _, err := url.Parse(cfg.RemoteDebugURL); err != nil {
+		return fmt.Errorf("invalid remoteDebugUrl: %w", err)
+	}
+	if cfg.MinImageBytes < 0 {
+		return errors.New("minImageBytes must be >= 0")
+	}
+	if cfg.WaitAfterLoadMs < 0 {
+		return errors.New("waitAfterLoadMs must be >= 0")
+	}
+	return nil
+}
+
+func (r *Repository) ValidateBaiduIndexConfig(cfg models.BaiduIndexCrawlConfig) error {
+	if strings.TrimSpace(cfg.Keyword) == "" {
+		return errors.New("keyword is required")
+	}
+	if strings.TrimSpace(cfg.RemoteDebugURL) == "" {
+		return errors.New("remoteDebugUrl is required, e.g. http://127.0.0.1:9222")
+	}
+	if _, err := url.Parse(cfg.RemoteDebugURL); err != nil {
+		return fmt.Errorf("invalid remoteDebugUrl: %w", err)
+	}
+	if strings.TrimSpace(cfg.StartURL) != "" {
+		parsed, err := url.Parse(cfg.StartURL)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			return fmt.Errorf("invalid startUrl: %s", cfg.StartURL)
+		}
+	}
+	if cfg.Period != "" {
+		switch cfg.Period {
+		case "7d", "30d", "90d", "180d", "all":
+		default:
+			return errors.New("period must be one of: 7d, 30d, 90d, 180d, all")
+		}
+	}
+	if cfg.WaitAfterLoadMs < 0 {
+		return errors.New("waitAfterLoadMs must be >= 0")
+	}
+	if cfg.MinImageBytes < 0 {
+		return errors.New("minImageBytes must be >= 0")
+	}
+	return nil
+}
+
 func WithTimeout(parent context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(parent, 30*time.Second)
 }

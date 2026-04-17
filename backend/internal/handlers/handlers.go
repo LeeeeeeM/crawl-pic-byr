@@ -18,19 +18,23 @@ import (
 )
 
 type Handler struct {
-	repo       *repository.Repository
-	crawler    *crawler.Service
-	byrCrawler *crawler.BYRService
-	mu         sync.Mutex
-	cancels    map[uuid.UUID]context.CancelFunc
+	repo              *repository.Repository
+	crawler           *crawler.Service
+	byrCrawler        *crawler.BYRService
+	cdpCrawler        *crawler.CDPService
+	baiduIndexCrawler *crawler.BaiduIndexService
+	mu                sync.Mutex
+	cancels           map[uuid.UUID]context.CancelFunc
 }
 
-func New(repo *repository.Repository, crawlerSvc *crawler.Service, byrSvc *crawler.BYRService) *Handler {
+func New(repo *repository.Repository, crawlerSvc *crawler.Service, byrSvc *crawler.BYRService, cdpSvc *crawler.CDPService, baiduIndexSvc *crawler.BaiduIndexService) *Handler {
 	return &Handler{
-		repo:       repo,
-		crawler:    crawlerSvc,
-		byrCrawler: byrSvc,
-		cancels:    make(map[uuid.UUID]context.CancelFunc),
+		repo:              repo,
+		crawler:           crawlerSvc,
+		byrCrawler:        byrSvc,
+		cdpCrawler:        cdpSvc,
+		baiduIndexCrawler: baiduIndexSvc,
+		cancels:           make(map[uuid.UUID]context.CancelFunc),
 	}
 }
 
@@ -39,6 +43,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Post("/api/jobs", h.createJob)
 	r.Get("/api/jobs", h.listJobs)
 	r.Post("/api/byr/jobs", h.createBYRJob)
+	r.Post("/api/cdp/jobs", h.createCDPJob)
+	r.Post("/api/baidu-index/jobs", h.createBaiduIndexJob)
 	r.Post("/api/jobs/{id}/cancel", h.cancelJob)
 	r.Delete("/api/jobs/{id}", h.deleteJob)
 	r.Get("/api/jobs/{id}", h.getJob)
@@ -109,6 +115,84 @@ func (h *Handler) createBYRJob(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, http.StatusAccepted, job)
 }
 
+func (h *Handler) createCDPJob(w http.ResponseWriter, r *http.Request) {
+	var cfg models.CDPCrawlConfig
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		jsonError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	if cfg.SiteName == "" {
+		cfg.SiteName = "cdp-page"
+	}
+	if cfg.RemoteDebugURL == "" {
+		cfg.RemoteDebugURL = "http://127.0.0.1:9222"
+	}
+	if cfg.ImageSelector == "" {
+		cfg.ImageSelector = "img"
+	}
+	if cfg.TitleSelector == "" {
+		cfg.TitleSelector = "title"
+	}
+	if cfg.ContentSelector == "" {
+		cfg.ContentSelector = "body"
+	}
+	if cfg.WaitAfterLoadMs <= 0 {
+		cfg.WaitAfterLoadMs = 1800
+	}
+
+	if err := h.repo.ValidateCDPConfig(cfg); err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	job, err := h.repo.CreateRawJob(r.Context(), cfg.SiteName, cfg)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	go h.runCDPJob(job.ID, cfg)
+
+	jsonResponse(w, http.StatusAccepted, job)
+}
+
+func (h *Handler) createBaiduIndexJob(w http.ResponseWriter, r *http.Request) {
+	var cfg models.BaiduIndexCrawlConfig
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		jsonError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	if cfg.SiteName == "" {
+		cfg.SiteName = "baidu-index-" + cfg.Keyword
+	}
+	if cfg.Period == "" {
+		cfg.Period = "90d"
+	}
+	if cfg.RemoteDebugURL == "" {
+		cfg.RemoteDebugURL = "http://127.0.0.1:9222"
+	}
+	if cfg.WaitAfterLoadMs <= 0 {
+		cfg.WaitAfterLoadMs = 1800
+	}
+
+	if err := h.repo.ValidateBaiduIndexConfig(cfg); err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	job, err := h.repo.CreateRawJob(r.Context(), cfg.SiteName, cfg)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	go h.runBaiduIndexJob(job.ID, cfg)
+
+	jsonResponse(w, http.StatusAccepted, job)
+}
+
 func (h *Handler) runJob(jobID uuid.UUID, cfg models.CrawlConfig) {
 	runCtx, runCancel := context.WithCancel(context.Background())
 	h.setCancel(jobID, runCancel)
@@ -142,6 +226,50 @@ func (h *Handler) runBYRJob(jobID uuid.UUID, cfg models.BYRCrawlConfig) {
 	_ = h.repo.MarkJobRunning(ctx, jobID)
 
 	if err := h.byrCrawler.Run(runCtx, jobID, cfg); err != nil {
+		fctx, fcancel := repository.WithTimeout(rBackground())
+		_ = h.repo.MarkJobFailed(fctx, jobID, err)
+		fcancel()
+		return
+	}
+
+	dctx, dcancel := repository.WithTimeout(rBackground())
+	_ = h.repo.MarkJobFinished(dctx, jobID)
+	dcancel()
+}
+
+func (h *Handler) runCDPJob(jobID uuid.UUID, cfg models.CDPCrawlConfig) {
+	runCtx, runCancel := context.WithCancel(context.Background())
+	h.setCancel(jobID, runCancel)
+	defer h.clearCancel(jobID)
+	defer runCancel()
+
+	ctx, cancel := repository.WithTimeout(rBackground())
+	defer cancel()
+	_ = h.repo.MarkJobRunning(ctx, jobID)
+
+	if err := h.cdpCrawler.Run(runCtx, jobID, cfg); err != nil {
+		fctx, fcancel := repository.WithTimeout(rBackground())
+		_ = h.repo.MarkJobFailed(fctx, jobID, err)
+		fcancel()
+		return
+	}
+
+	dctx, dcancel := repository.WithTimeout(rBackground())
+	_ = h.repo.MarkJobFinished(dctx, jobID)
+	dcancel()
+}
+
+func (h *Handler) runBaiduIndexJob(jobID uuid.UUID, cfg models.BaiduIndexCrawlConfig) {
+	runCtx, runCancel := context.WithCancel(context.Background())
+	h.setCancel(jobID, runCancel)
+	defer h.clearCancel(jobID)
+	defer runCancel()
+
+	ctx, cancel := repository.WithTimeout(rBackground())
+	defer cancel()
+	_ = h.repo.MarkJobRunning(ctx, jobID)
+
+	if err := h.baiduIndexCrawler.Run(runCtx, jobID, cfg); err != nil {
 		fctx, fcancel := repository.WithTimeout(rBackground())
 		_ = h.repo.MarkJobFailed(fctx, jobID, err)
 		fcancel()

@@ -1,5 +1,6 @@
 import { CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Alert, Button, Card, Input, Modal } from 'antd';
 import { cancelJob, deleteJob, getJob, getPhotos, getPosts, listJobs } from '../api';
 import type { CrawlJob, Photo, Post } from '../types';
 
@@ -75,10 +76,17 @@ export default function ViewerPage() {
   }
 
   async function onDeleteJob(id: string) {
-    const ok = window.confirm('删除任务后会同时删除该任务的帖子和图片记录，确认删除吗？');
-    if (!ok) {
-      return;
-    }
+    const ok = await new Promise<boolean>((resolve) => {
+      Modal.confirm({
+        title: '确认删除任务',
+        content: '删除任务后会同时删除该任务的帖子和图片记录，确认删除吗？',
+        okText: '确认删除',
+        cancelText: '取消',
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+    if (!ok) return;
     try {
       await deleteJob(id);
       await loadRecentJobs();
@@ -264,43 +272,42 @@ export default function ViewerPage() {
       <p className="subtitle">输入任务 ID，查看每个主贴的正文和图片</p>
 
       <section className="card viewer-filter">
-        <input
+        <Input
           placeholder="任务 ID"
           value={jobIdInput}
           onChange={(e) => setJobIdInput(e.target.value)}
         />
-        <button type="button" onClick={onOpen} disabled={loading}>
+        <Button type="primary" onClick={onOpen} loading={loading}>
           {loading ? '加载中...' : '打开'}
-        </button>
+        </Button>
       </section>
 
-      {error && <p className="error">{error}</p>}
+      {error && <Alert message={error} type="error" showIcon style={{ marginTop: 16 }} />}
 
       {jobs.length > 0 && (
-        <section className="card">
-          <h2>最近任务</h2>
+        <Card className="card" title="最近任务">
           <div className="job-list">
             {jobs.map((item) => (
               <div key={item.id} className="job-row">
-                <button type="button" className="job-open" onClick={() => navigate(`/viewer/${item.id}`)}>
+                <Button type="text" className="job-open" onClick={() => navigate(`/viewer/${item.id}`)}>
                   <span className="job-title">{item.siteName}</span>
                   <span className={`job-status status-${item.status}`}>{item.status}</span>
                   <span className="job-id">{item.id}</span>
-                </button>
+                </Button>
                 <div className="job-actions">
                   {item.status === 'running' && (
-                    <button type="button" className="job-cancel" onClick={() => void onCancelJob(item.id)}>
+                    <Button type="default" className="job-cancel" onClick={() => void onCancelJob(item.id)}>
                       停止任务
-                    </button>
+                    </Button>
                   )}
-                  <button type="button" className="job-delete" onClick={() => void onDeleteJob(item.id)}>
+                  <Button type="default" className="job-delete" onClick={() => void onDeleteJob(item.id)}>
                     删除任务
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
-        </section>
+        </Card>
       )}
 
       {job && (

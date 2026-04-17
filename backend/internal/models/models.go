@@ -30,6 +30,28 @@ type BYRCrawlConfig struct {
 	MinImageBytes   int64  `json:"minImageBytes"`
 }
 
+type CDPCrawlConfig struct {
+	SiteName          string `json:"siteName"`
+	StartURL          string `json:"startUrl"`
+	RemoteDebugURL    string `json:"remoteDebugUrl"`
+	PageReadySelector string `json:"pageReadySelector"`
+	ContentSelector   string `json:"contentSelector"`
+	ImageSelector     string `json:"imageSelector"`
+	TitleSelector     string `json:"titleSelector"`
+	WaitAfterLoadMs   int    `json:"waitAfterLoadMs"`
+	MinImageBytes     int64  `json:"minImageBytes"`
+}
+
+type BaiduIndexCrawlConfig struct {
+	SiteName        string `json:"siteName"`
+	Keyword         string `json:"keyword"`
+	StartURL        string `json:"startUrl"`
+	Period          string `json:"period"`
+	RemoteDebugURL  string `json:"remoteDebugUrl"`
+	WaitAfterLoadMs int    `json:"waitAfterLoadMs"`
+	MinImageBytes   int64  `json:"minImageBytes"`
+}
+
 type CrawlJob struct {
 	ID         uuid.UUID  `json:"id"`
 	SiteName   string     `json:"siteName"`

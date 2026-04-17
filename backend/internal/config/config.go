@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Port        string
 	DatabaseURL string
+	AssetsDir   string
 }
 
 func Load() (*Config, error) {
@@ -19,6 +20,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Port:        getOrDefault("PORT", "8080"),
 		DatabaseURL: os.Getenv("DATABASE_URL"),
+		AssetsDir:   getOrDefault("ASSETS_DIR", "data"),
 	}
 
 	if cfg.DatabaseURL == "" {
